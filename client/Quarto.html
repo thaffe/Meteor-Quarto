@@ -1,0 +1,65 @@
+<head>
+  <title>Quarto</title>
+</head>
+
+<body>
+  {{> body}}
+</body>
+
+<template name="body">
+	<nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+		<div class="navbar-header">
+			<a class="navbar-brand" href="#">Quarto</a>
+			{{#if showGame}}
+				<ul class="nav navbar-left navbar-nav">
+					<li><a id="changeGame" href="#">Change Game type</a></li>
+					<li><a id="restartGame" href="#">Restart Game</a></li>
+				</ul>
+			{{/if}}
+		</div>
+	</nav>
+	{{#if showGame}}
+		{{> game}}
+	{{else}}
+		{{> gameSelect}}
+	{{/if}}	
+</template>
+
+<template name="gameSelect">
+	<div class="jumbotron">	
+		<center class="container gameselect">
+			<h1>Quarto</h1>
+			{{#each players}}
+				<div id="player{{id}}">
+					<h3 class="text-muted">Player {{this.name}} type</h3>
+						{{#each playerTypes}}
+							<p><a class="gameBtn btn {{isActive ..id}}">{{name}}</a></p>
+						{{/each}}
+						{{#if showMinMax}}
+							<small>Minmax Level</small>
+							<input id="minmax{{id}}" type="number" class="form-control" min="1" max="6" value="3">
+						{{/if}}
+				</div>
+				{{#if showVS}}
+					<div class="vs">VS</div>
+				{{/if}}
+			{{/each}}
+			{{#if showMultiple}}
+					<p>Run multple simulations</p>
+					<p class="btn-group" data-toggle="buttons">
+					  <label class="btn btn-primary" id="yesBtn">
+					    <input type="radio" name="option"> YES
+					  </label>
+					  <label class="btn btn-primary active" id="noBtn">
+					    <input type="radio" name="option" selected checked> NO
+					  </label>
+					</p>
+					<p>
+						<input type="number" class="form-control" style="width:100px" id="simulationsCount" value="10">
+					</p>
+			{{/if}}
+			<p><button id="startBtn" class="btn btn-success btn-lg">Start Game</button></p>
+		</center>
+
+	</div>
+</template>

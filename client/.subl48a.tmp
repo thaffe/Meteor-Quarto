@@ -1,0 +1,94 @@
+/*****
+GAME PLAY
+******/
+var board, pieces, player1;
+
+resetBoard();
+
+function isEven(n){
+  return n % 2 === 0;
+}
+
+function getPiece(row,col){
+
+}
+
+function resetBoard(){
+  board = new Meteor.Collection(null);
+  pieces = new Meteor.Collection(null);
+
+  for(var row = 0; row < 4; row++){
+    for(var col = 0; col < 4 ;col++){
+      var index = row*4+col+"";
+
+      board.insert({_id:index,row:row,col:col});
+      pieces.insert({
+        _id:index,
+        row:row,
+        col:col,
+        p:{
+          bl:col<2,
+          ho:row < 2,
+          ta:isEven(col),
+          sq:isEven(row),
+        }
+      });
+    }
+  }
+}
+
+Template.game.events({
+  'click td': function () {
+    console.log(this);
+  }
+});
+
+Template.game.gameType = function(){
+  var type = Session.get("gameType");
+  var string = "";
+  if(type <= 2) string += "Human";
+  else string+=levelString(Session.get("level1"), 1);
+
+  string += " vs ";
+
+  if(type == 1) string+= "Human";
+  else if(type == 2) string+= levelString(Session.get("level1"), 1);
+  else string+= levelString(Session.get("level2"),2);
+
+  return string;
+}
+
+function levelString(level,computer){
+  return (level == 1 ? "Random" : level == 2 ? "Novice" : "Minmax-"+Session.get("minmax"+computer))+ " Computer"
+}
+
+Template.game.rows = function(){
+  return [{row:0},{row:1},{row:2},{row:3}];
+}
+
+Template.game.board = function(){
+  return board.find(this);
+}
+
+Template.game.pieces = function(row){
+  return pieces.find(this);
+}
+
+Template.game.boardClass = function(){
+  return Session.get("gameType") <=2 ? "hoverable" : ""
+}
+
+Template.game.piecesClass = function(){
+  return Session.get("gameType") <= 2 ? "hoverable" : "";
+}
+
+Template.game.bgColor = function(){
+  return isEven(this.col+this.row) ? "dark" :""
+}
+
+Template.game.getPiece = function(){
+  return JSON.stringify(this.p);
+}
+
+
+
