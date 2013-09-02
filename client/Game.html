@@ -1,15 +1,9 @@
 <template name="game">
 	<center class="page container">
 		<h1>Quarto <small>{{gameType}}</small></h1>
+		
 		{{#if runSimulations}}
-			<table class="table table-striped">
-				{{#each simulations}}
-					<tr>
-						<td>{{winner}}</td>
-						<td>{{reason}}</td>
-					</tr>
-				{{/each}}
-			</table>
+			{{> simulations}}
 		{{else}}
 			<h3 id="info" class="text-primary">{{info}}</h3>
 			<div id="board" class="board {{boardClass}}">
@@ -36,4 +30,32 @@
 			</div>
 		{{/if}}
 	</center>
+</template>
+
+<template name="simulations">
+	<div class="jumbotron">	
+		<center class="container gameselect">
+		<div>
+			{{player1}}
+		</div>
+		</center>
+	</div>	
+
+	<table class="table table-striped">
+		<thead>
+			<tr>
+				<th>#</th>
+				<th>Winner index</th>
+				<th>Winner name</th>
+				<th>Reason</th>
+				<th></th>
+			</tr>
+		</thead>
+		{{#each items}}
+			<tr>
+				<td>{{winner}}</td>
+				<td>{{reason}}</td>
+			</tr>
+		{{/each}}
+	</table>
 </template>
