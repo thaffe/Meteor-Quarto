@@ -116,11 +116,10 @@ var ignore = {}
   }
 
   function getMinMaxPiece() {
-    return getRandomPiece();
-
+    var time = new Date().getTime();
     var depth = game["minmax" + currentPlayer],
       i = 16,
-      bestValue = 10000,
+      bestValue = -10000,
       bestPiece = null;
 
     while (i--) {
@@ -128,17 +127,17 @@ var ignore = {}
         var p = pieces[i];
         pieces[i] = 0;
 
-        var newVal = doMinmaxBoard(depth, false, -10000, 10000, p);
+        var newVal = doMinmaxBoard(depth, false, bestValue, 10000, p);
         pieces[i] = p;
-        //console.log("Pieceval", newVal);
-        if (newVal < bestValue) {
-          console.log("Lowest heuristic Piece", newVal, i);
-          if (bestValue == 1000) return i;
+        if (newVal > bestValue) {
+          if (bestValue >= 1000) return i;
           bestPiece = i;
           bestValue = newVal;
         }
       }
     }
+
+    console.log("TIME:"+(new Date().getTime() - time));
 
     return bestPiece;
   }
@@ -164,7 +163,6 @@ var ignore = {}
         board[i] = false;
 
         if (newVal > bestValue) {
-          console.log("BestValue Board", newVal);
           if (bestValue == 1000) return i;
           bestPiece = i;
           bestValue = newVal;
@@ -178,6 +176,7 @@ var ignore = {}
   function doMinmaxBoard(depth, isMax, alpha, beta, placePiece) {
     if (!depth) return getHeuristicValue(isMax);
     var i = 16;
+
     while (i--) {
       if (!board[i]) {
         board[i] = placePiece;
@@ -199,13 +198,13 @@ var ignore = {}
             }
 
           }
-
-          board[0] = 0;
         }
+        board[i] = 0;
       }
-      return isMax ? alpha : beta;
-
     }
+
+    return isMax ? alpha : beta;
+
   }
 
   function doMinmaxPieces(depth, isMax, alpha, beta) {
@@ -229,25 +228,30 @@ var ignore = {}
         if (beta <= alpha) return beta;
       }
     }
+
+    return isMax ? alpha : beta;
   }
 
   function getHeuristicValue(isMax) {
-    var i = 16;
+    var row = 4;
     var res = 0;
-    while (i--) {
-      if (!board[i]) {
-        var j = 16;
-        while (j--) {
-          if (pieces[i]) {
-            board[i] = pieces[j];
-            if (checkBoardPiecesWin(true)) res += 10;
-            board[i] = 0;
-          }
-        }
+    while(row--){
+      var col = 4;
+      var countRow = 0;
+      var countCol = 0;
+      while(col--){
+        if(board[row*4+col]) countRow++;
+        if(board[row+4*col]) countCol++
+      }
+
+      if(countRow == 3){
+        res+=10;
+      }
+      if(countCol == 3){
+        res+=10;
       }
     }
-
-    return (isMax ? 1 : -1) * res;
+    return (isMax ? 1 : -1) * 10;
   }
 
   /**
