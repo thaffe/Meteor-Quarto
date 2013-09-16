@@ -1,0 +1,57 @@
+
+  var row = 4,
+    res = 0,
+    diag1 = 0,
+    diag2 = 0,
+    row3 = [],
+    col3 = [];
+  while (row--) {
+    var col = 4;
+    var countRow = 0;
+    var countCol = 0;
+
+    while (col--) {
+      if (board[row * 4 + col]) countRow++;
+      if (board[row + 4 * col]) countCol++;
+    }
+
+    if (board[row * 4 + row]) diag1++;
+    if (board[row * 4 + 3 - row]) diag2++;
+
+    if (countRow == 3) {
+      row3.push(row);
+      res += 10;
+    } else if (countRow == 2) {
+      res += 1;
+    }
+
+    if (countCol == 3) {
+      res += 10;
+    } else if (countCol == 2) {
+      res += 1;
+    }
+  }
+
+  if (diag1 == 3) res += 10;
+  else if (diag1 == 2) res += 1;
+
+  if (diag2 == 3) res += 10;
+  else if (diag2 == 2) res += 1;
+
+  len = row3.length;
+  if (len) {
+    while (len--) {
+      var i = 4;
+      row = row3[len] * 4;
+      var s = board[row] + board[row + 1] + board[row + 2] + board[row + 3];
+      while (i--) {
+        if (s[i] == s[i + 4] && s[i + 8] == s[i]) {
+          res += 100
+        }
+      }
+    }
+  }
+
+
+
+  return (isMax ? 1 : -1) * 10;

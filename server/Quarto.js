@@ -1,103 +1,155 @@
-Meteor.Router.add("/init/:id", function(id) {
-	var res = {
-		index: 0,
-	}
-	var q = Games.findOne(id);
-	if (q) {
-		res.index = 1;
-		res.boardTurn = q.boardTurn;
-	} else {
-		res.boardTurn = Math.round(Math.random())
-		Games.insert({
-			_id: id,
-			last: new Date().getTime(),
-			select: 1,
-			boardTurn: res.playerTurn,
-			board: getEmptyBoard(),
-			pieces: getPieces()
+Meteor.startup(function () {
+	Players.remove({last:{$lt:(new Date().getTime() - 180000)}})
+});
+
+Meteor.publish('player', function(id,resetPlayer) {
+	if (!Players.findOne(id)) {
+		Players.insert({
+			_id: id
 		});
+	}else if(resetPlayer){
+		Players.update(id,{})
 	}
-
-	return JSON.stringify(res);
-});
-
-Meteor.Router.add("/getPiece/:id/:playerIndex", function(id, playerIndex) {
-	var g = Games.findOne(id);
-	if (g && g.piece) {
-
-	}
-});
-
-Meteor.Router.add("/getBoard/:id/:playerIndex", function(id, playerIndex) {
-	var g = Games.findOne(id);
-	if (g && g.piece) {
-
-	}
-});
-
-Meteor.Router.add("/piece/:id/:playerIndex/:isBlack/:isSquare/:isBig/:hasHole", function(id, playerIndex, isBlack, isSquare, isBig, hasHole) {
-	var g = Games.findOne(id);
-	if (g && g.boardTurn != playerIndex) {
-		g.update(id, {
-			$set: {
-				piece:pieceToInteger(isBlack,isSquare,isBig,hasHole)
-			}
-		})
-	}
-});
-
-Meteor.Router.add("/board/:id/:playerIndex/:row/:col", function(row, col) {
-
-});
-
-Meteor.Router.add("/exit/:id", function(id) {
-	Games.remove({
-		gameId: id
-	});
-	Pieces.remove({
-		gameId: id
-	});
-	Board.remove({
-		gameId: id
+	return Players.find({
+		_id: id
 	});
 });
 
-var Games = new Meteor.Collection("onlineGames");
-var Pieces = new Meteor.Collection("pieces");
-var Board = new Meteor.Collection("board");
-
-Meteor.startup(function() {
-	Games.remove({});
+Meteor.publish('monitor', function(gameId) {
+	return Players.find({
+		gameId: gameId
+	});
 });
 
-function getGameIfTurn(id, index, doBoard) {
-	var g = Games.findOne(id);
-	return g && ((index == g.boardTurn && doBoard) ||
-		(index != g.boardTurn && !doBoard)) ? g : null;
-}
+Meteor.methods({
 
-function getPieces() {
-	var res = new Array(16);
-	for (var row = 0; row < 4; row++) {
-		for (var col = 0; col < 4; col++) {
-			var index = row * 4 + col + "";
-			res[pieceToInteger(col < 2, row < 2, isEven(col), isEven(row))] = 1;
+	startGame: function(userId, gameId) {
+		var player = Players.findOne(userId);
+		if (!player) return;
+		var oponent, updateAttrs = {
+			selectedPos: -1,
+			selectedPiece: -1,
+			last:new Date().getTime()
+		};
+
+		if (gameId) {
+			updateAttrs.gameId = gameId;
+			oponent = Players.findOne({
+				gameId: gameId
+			});
+		} else {
+			oponent = Players.findOne({
+				_id:{$ne:userId},
+				searching: 1,
+				gameId: {
+					$exists: false
+				}
+			});
 		}
+
+		if (oponent) {
+			updateAttrs.oponent = oponent._id;
+			updateAttrs.index = 1;
+			updateAttrs.searching = 0;
+
+			var playerTurn = Math.round(Math.random());
+			updateAttrs.turn = playerTurn;
+			
+			Players.update(oponent._id, {
+				searching: 0,
+				oponent: player._id,
+				index: 0,
+				turn: playerTurn
+			});
+		} else {
+			updateAttrs.searching = 1;
+		}
+
+
+		Players.update(userId, updateAttrs);
+
+	},
+
+	restart : function(userId){
+		var player = Players.findOne(userId);
+		if(!player || !player.oponent)return;
+
+		if(player.doRestart){
+			var playerTurn = Math.round(Math.random()),
+			update = {
+				doRestart : 0,
+				turn:playerTurn,
+				selectedPiece:-1,
+				selectedPos:-1
+			};
+			playerUpdate(userId, update);
+			playerUpdate(player.oponent, update);
+		}else{
+			Players.update(userId,{oponent:player.oponent,index:player.index});
+			playerUpdate(player.oponent,{doRestart:1});
+		}
+	},
+
+	doMove : function(userId, placePos, selectedPiece){
+		var player = Players.findOne(userId);
+		if(!player || !player.oponent) return;
+		if(player.turn != player.index){
+			Meteor.Error(500, 'Its not your turn');
+			return;
+		}
+
+		playerUpdate(player.oponent, {
+			turn:bitShift(player.turn),
+			selectedPos: placePos,
+			selectedPiece: selectedPiece
+		});
+	},
+
+	exit : function(userId){
+		playerUpdate({oponent:userId},{oponent:0});
+		Players.remove(userId);
+	},
+
+	joinGame: function(id) {
+		var g = Games.findOne(id);
+		if (g) {
+			if (g.playerCount < 2) {
+				updateGame(id, {
+					playerCount: 2,
+				});
+
+				return 1;
+
+			} else {
+				updateGame(id, {
+					playerCount: 1,
+					readyCount: 0
+				})
+			}
+
+		} else {
+
+			Games.insert({
+				_id: id,
+				playerCount: 1,
+				readyCount: 0,
+			});
+
+		}
+
+		return 0;
 	}
+});
 
-	return res;
-
+function updateGame(id, updateAttrs) {
+	Games.update(id, {
+		$set: updateAttrs
+	});
 }
 
-function getEmptyBoard() {
-	var i = 16, res = new Array(16);
-	while (i--) {
-		res[i] = 0;
-	}
-
-	return res;
-}
-
-function pieceToInteger(isBlack, isSquare, isBig, hasHole) {
-	return (isBlack << 3) | (isSquare << 2) | (isBig << 1) | (isBig << 0);
+function playerUpdate(id, updateAttrs) {
+	updateAttrs.last = new Date().getTime();
+	Players.update(id, {
+		$set: updateAttrs
+	});
 }

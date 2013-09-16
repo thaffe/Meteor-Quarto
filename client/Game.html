@@ -36,7 +36,24 @@
 	<div class="jumbotron">	
 		<center class="container gameselect">
 		<div>
-			{{player1}}
+			<table class="table table-striped">
+				<tr>
+					<th>Name</th>
+					<th>Wins</th>
+					<th>Loss</th>
+					<th>Draw</th>
+					<th>Percentage</th>
+				</tr>
+				{{#each stats}}
+					<tr>
+						<td>{{name}}</td>
+						<td>{{wins}}</td>
+						<td>{{loss}}</td>
+						<td>{{draw}}</td>
+						<td>{{percent}}%</td>
+					</tr>
+				{{/each}}
+			</table>
 		</div>
 		</center>
 	</div>	
@@ -45,7 +62,7 @@
 		<thead>
 			<tr>
 				<th>#</th>
-				<th>Winner index</th>
+				<th style="width:120px">Winner index</th>
 				<th>Winner name</th>
 				<th>Reason</th>
 				<th></th>
@@ -53,6 +70,8 @@
 		</thead>
 		{{#each items}}
 			<tr>
+				<td>{{round}}</td>
+				<td>{{winnerIndex}}</td>
 				<td>{{winner}}</td>
 				<td>{{reason}}</td>
 			</tr>

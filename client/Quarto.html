@@ -37,7 +37,7 @@
 						{{/each}}
 						{{#if showMinMax}}
 							<small>Minmax Level</small>
-							<input id="minmax{{id}}" type="number" class="form-control" min="1" max="6" value="3">
+							<input id="minmax{{id}}" type="number" class="form-control" min="1" max="10" value="3">
 						{{/if}}
 				</div>
 				{{#if showVS}}
@@ -57,6 +57,12 @@
 					<p>
 						<input type="number" class="form-control" style="width:100px" id="simulationsCount" value="10">
 					</p>
+			{{/if}}
+			{{#if showGameId}}
+				<p>
+					<small>Game id</small>
+					<input type="text" id="gameId" class="form-control" style="width:200px" placeHolder="Optional for finding a game">
+				</p>
 			{{/if}}
 			<p><button id="startBtn" class="btn btn-success btn-lg">Start Game</button></p>
 		</center>
