@@ -2,32 +2,34 @@
 GAME PLAY
 ******/
 
-window.test = function() {
-  for (var i = 0; i < 3; i++) {
-    setSelected(i);
-    placePiece(i);
-  }
+// window.test = function() {
+//   for (var i = 0; i < 3; i++) {
+//     setSelected(i);
+//     placePiece(i);
+//   }
 
-  for (var i = 9; i < 11; i++) {
-    setSelected(i);
-    placePiece(i);
-  }
-};
+//   for (var i = 9; i < 11; i++) {
+//     setSelected(i);
+//     placePiece(i);
+//   }
+// };
 
 Deps.autorun(function() {
-  var monitor = Session.get("monitorGame")
+  var monitor = Session.get("monitorGame");
+  console.log("monitorGame")
   if (monitor) {
-    Meteor.subscribe('monitor', monitor);
+    Meteor.subscribe('monitor', Session.get("monitorGame"));
+  } else {
+    Meteor.subscribe("player", Session.get("userId"));
   }
 });
 
 var currentPlayer, selectedPiece, currentRound, lastBoardPos = -1;
 var board = [],
   pieces = [],
-  typeCount = {},
+  typeCount = {}, timePlace, timePick,
   type, simulations, simCount = 0,
   onlineStarted = false;
-
 var winInfo = {}, hasWon = false;
 
 function startGame() {
@@ -42,6 +44,15 @@ function startGame() {
     typeCount.push(createList(8, 0));
   }
 
+  timePlace = [
+    [],
+    []
+  ];
+  timePick = [
+    [],
+    []
+  ];
+
   selectedPiece = -1;
   lastBoardPos = -1;
 
@@ -50,15 +61,10 @@ function startGame() {
   hasWon = false;
 
   if (isOnlineGame(game)) {
-    //Meteor.call("reset", game.gameId, game.index);
     onlineStarted = false;
   } else {
     selectPiece();
   }
-}
-
-window.deleteGame = function() {
-  Games.remove("testGame");
 }
 
 function getNextPlayer() {
@@ -80,29 +86,17 @@ function getNameOfPlayer(index) {
   switch (type) {
     case 4:
       return "Minmax-" + game["minmax" + index] + " Computer";
+    case 5:
+      if (isMonitor()) {
+        return Players.find().count() < 2 ? "Unknown" : Players.findOne({
+          index: index
+        })._id;
+      }else{
+        var n = Players.findOne().oponent;
+        if(n) return n;
+      }
     default:
       return playerTypes[type - 1].name;
-  }
-}
-
-function getTypeName(typeIndex) {
-  switch (typeIndex) {
-    case 0:
-      return "red pieces";
-    case 1:
-      return "circle pieces";
-    case 2:
-      return "small pieces";
-    case 3:
-      return "pieces without hole";
-    case 4:
-      return "blue pieces";
-    case 5:
-      return "square pieces";
-    case 6:
-      return "big pieces";
-    case 7:
-      return "pieces with hole";
   }
 }
 
@@ -119,7 +113,11 @@ function selectPiece() {
       setHoverable(false, false);
       break;
     default:
+
+      var time = new Date().getTime();
       setSelected(getPiece[type]());
+      timePick[currentPlayer].push(new Date().getTime() - time);
+
       if (game.type1 == 1 || game.type2 == 1) {
         setInfo("Computer selected this piece for you to place");
       }
@@ -143,7 +141,11 @@ function selectBoardPlace() {
       setHoverable();
       break;
     default:
-      placePiece(type == 4 ? getMinMaxBoard() : type == 3 ? getNoviceBoard() : getRandomBoard());
+      var time = new Date().getTime();
+      var p = getBoard[type]();
+      timePlace[currentPlayer].push(new Date().getTime() - time);
+      placePiece(p);
+
   }
 }
 
@@ -211,19 +213,18 @@ function getMinMaxPiece() {
   if (currentRound <= 3) return getRandomPiece();
 
   var depth = game["minmax" + currentPlayer],
-    alphaBeta = [10000, -10000],
-    i = 16,
-    bestValue = -10000,
-    bestPiece = null;
+    alpha = -10000,
+    beta = 100000,
+    bestPiece = -1;
 
-  if (depth > 4 && currentRound < 8) depth = 4;
+  if (depth > 4 && currentRound < 6) depth = 4;
 
-  for(var i = 0; i < 16; i++){
-    if(!pieces[i])continue;
-    alphaBeta[1] = bestValue;
-    var newVal = doMinmaxBoard(depth,0,alphaBeta, i);
-    if(newVal > bestValue){
-      bestValue = newVal;
+  for (var i = 0; i < 16; i++) {
+    if (!pieces[i]) continue;
+    var newVal = doMinmaxBoard(depth, 0, alpha, beta, i);
+    if (newVal > alpha) {
+      if (newVal >= 1000) return i;
+      alpha = newVal;
       bestPiece = i;
     }
   }
@@ -242,98 +243,114 @@ function getMinMaxBoard() {
 
 
   var depth = game["minmax" + currentPlayer],
-    //Min/beta is index 0 & 1 is max/alpha
-    alphaBeta = [100000, -100000];
+    alpha = -100000,
+    beta = 100000,
+    bestPos = -1;
 
-  if (depth > 4 && currentRound < 8) depth = 4;
-  
-  p = pieces[selectedPiece];
-  pieces[selectedPiece] = 0;
+  if (depth > 4 && currentRound < 6) depth = 4;
 
-  var bestPos = -1,
-    bestVal = -100000;
   for (var i = 0; i < 16; i++) {
-    
     if (board[i]) continue;
-    board[i] = p;
-    updateTypeCount(i);
+    if (tempSel(i, selectedPiece)) return i;
+    var newVal = doMinmaxPiece(depth, 1, alpha, beta);
 
-    if(checkBoardPiecesWin()){
+    tempUnSel(i, selectedPiece);
+    if (newVal > alpha) {
+      if (newVal >= 1000) return i;
       bestPos = i;
-      updateTypeCount(i,true);
-      board[i] = 0;
-      break;
+      alpha = newVal;
     }
-
-    doMinmaxPiece(depth, 1, alphaBeta);
-
-    if (alphaBeta[1] > bestVal) {
-      bestPos = i;
-      bestVal = alphaBeta[1];
-    }
-
-    updateTypeCount(i,true);
-    board[i] = 0;
   }
-
-  pieces[selectedPiece] = p;
 
   return bestPos;
 }
 
-function doMinmaxBoard(depth, isMax, alphaBeta, selIndex) {
+function tempSel(boardI, selI) {
+  board[boardI] = pieces[selI];
+  pieces[selI] = 0;
+  updateTypeCount(boardI);
+
+  if (checkBoardPiecesWin()) {
+    tempUnSel(boardI, selI);
+    return 1;
+  }
+  return 0;
+}
+
+function tempUnSel(boardI, selI) {
+  updateTypeCount(boardI, true);
+  pieces[selI] = board[boardI];
+  board[boardI] = 0;
+}
+
+function doMinmaxBoard(depth, isMax, alpha, beta, selIndex) {
   if (depth == 0) return getHeuristicValue(isMax);
-  alphaBeta = alphaBeta.slice();
-  for (var i = 0; i < 16; i++) {
-    if (board[i]) continue;
 
-    board[i] = pieces[selIndex];
-    pieces[selIndex] = 0;
-    updateTypeCount(i);
+  if (isMax) {
+    for (var i = 0; i < 16; i++) {
+      if (board[i]) continue;
+      if (tempSel(i, selIndex)) {
+        return depth * 1000;
+      }
 
-    if (checkBoardPiecesWin()) {
-      alphaBeta[isMax] = isMax ? 1000 : -1000;
-      break;
+      alpha = doMinmaxPiece(depth, isMax, alpha, beta);
+      tempUnSel(i, selIndex);
+
+      if (beta <= alpha) return alpha;
     }
-    doMinmaxPiece(depth,isMax, alphaBeta);
 
-    updateTypeCount(i, true);
-    pieces[selIndex] = board[i];
-    board[i] = 0;
+    return alpha;
+  } else {
 
-    if (alphaBeta[0] <= alphaBeta[1]) break;
+    for (var i = 0; i < 16; i++) {
+      if (board[i]) continue;
+      if (tempSel(i, selIndex)) {
+        return -1000;
+      }
+
+      beta = doMinmaxPiece(depth, isMax, alpha, beta);
+      tempUnSel(i, selIndex);
+
+      if (beta <= alpha) return beta;
+    }
+
+    return beta;
   }
-
-  if (board[i]) {
-    updateTypeCount(i, true);
-    pieces[selIndex] = board[i];
-    board[i] = 0;
-  }
-  return alphaBeta[isMax];
 }
 
-function doMinmaxPiece(depth, isMax, alphaBeta) {
-  for (var j = 0; j < 16; j++) {
-    if (!pieces[j]) continue;
-    alphaBeta[isMax] = Math[isMax ? "max" : "min"](alphaBeta[isMax], doMinmaxBoard(depth - 1, bitShift(isMax), alphaBeta, j));
-    if (alphaBeta[0] <= alphaBeta[1]) {
-      break;
+function doMinmaxPiece(depth, isMax, alpha, beta) {
+  depth--;
+  if (isMax) {
+    for (var j = 0; j < 16; j++) {
+      if (!pieces[j]) continue;
+      alpha = Math.max(alpha, doMinmaxBoard(depth, !isMax, alpha, beta, j));
+      if (beta <= alpha) return alpha;
     }
+
+    return alpha;
+  } else {
+    for (var j = 0; j < 16; j++) {
+      if (!pieces[j]) continue;
+      beta = Math.min(beta, doMinmaxBoard(depth, !isMax, alpha, beta, j));
+      if (beta <= alpha) return beta;
+    }
+
+    return beta;
   }
-  return alphaBeta[isMax];
 }
 
+var type3test = new Array(8);
 
 function getHeuristicValue(isMax) {
 
-  var res = 0,
-    types3 = new Array(8);
+  var res = 0;
+  //types3 = new Array(8);
   for (var i = 0; i < 10; i++) {
     for (var j = 0; j < 8; j++) {
       switch (typeCount[i][j]) {
         case 3:
           res += 10;
-          types3[j] = 1;
+          type3test[j] = 1;
           break;
         case 2:
           res += 1;
@@ -343,12 +360,15 @@ function getHeuristicValue(isMax) {
   }
 
   for (var i = 0; i < 4; i++) {
-    if (types3[i] == 1 && types3[i * 2] == 1) {
+    if (type3test[i] == 1 && type3test[i * 2] == 1) {
       res += 100;
       break;
     }
+
+    type3test[i] = 0;
+    type3test[i * 2] = 0;
   }
-  return (isMax ? 1 : -1)*res;
+  return (isMax ? 1 : -1) * res;
 }
 
 /**
@@ -427,14 +447,12 @@ function existsWinType(array) {
 
 function updateSimulation() {
   simCount++;
-  if (simCount <= game.runSimulations) {
+  if (simCount < game.runSimulations) {
 
     if (isOnlineGame()) {
-      Meteor.call("restart", Session.get("userId"));
+      Meteor.call("restart", isMonitor() ? Players.findOne()._id : Session.get("userId"));
     }
-
-    winInfo.round = simCount;
-    simulations.insert(winInfo, startGame);
+    setTimeout(startGame);
   } else {
     Session.set("simulationDone", true);
   }
@@ -450,14 +468,32 @@ function setInfo(text) {
 }
 
 function setWinInfo(indexes, typeIndex) {
+  var avgSel = [getAvg(timePick[0]), getAvg(timePick[1])],
+    avgPlace = [getAvg(timePlace[0]), getAvg(timePlace[1])];
+
   winInfo = {
-    indexes: indexes,
-    typeIndex: typeIndex,
-    winner: getNameOfPlayer(currentPlayer),
-    winnerIndex: currentPlayer,
-    reason: "4 " + getTypeName(typeIndex) + " in a row"
+    timeRound0: avgSel[0] + avgPlace[0],
+    timeRound1: avgSel[1] + avgPlace[1],
+    round: simCount + 1
   };
-  setInfo(winInfo.winner + " wins! Has " + winInfo.reason);
+
+  if (currentRound == 16) {
+    winInfo.draw = 1;
+    winInfo.winner = "Draw";
+    winInfo.winInfo = "NaN";
+    winInfo.reason = "Game ended in a draw";
+    setInf(winInfo.reason);
+  } else {
+    winInfo.winner = getNameOfPlayer(currentPlayer);
+    winInfo.winnerIndex = currentPlayer;
+    winInfo.indexes = indexes;
+    winInfo.reason = "4 " + getTypeName(typeIndex) + " in a row";
+    setInfo(winInfo.winner + " wins! Has " + winInfo.reason);
+  }
+
+  if (simulations) {
+    simulations.insert(winInfo);
+  }
 }
 
 /**
@@ -470,12 +506,8 @@ function setWinInfo(indexes, typeIndex) {
 function checkForWin() {
   //If theres is no pieces left (all the pieces is set to null), then tell the player the game ended in a draw
   if (currentRound == 16) {
-    winInfo = {
-      draw: 1,
-      winner: "Draw",
-      reason: "Game ended in a draw"
-    };
-    setInfo("Game ended in a draw");
+    setWinInfo();
+    //setInfo("Game ended in a draw");
     return 1;
   }
 
@@ -498,7 +530,6 @@ function checkForWin() {
     }
 
     setWinInfo(indexes, typeIndex);
-
     return 1;
   }
 
@@ -608,34 +639,52 @@ Template.game.info = function() {
 }
 
 Template.game.runSimulations = function() {
-  return game.runSimulations;
+  return game.runSimulations || isMonitor();
 }
 
 Template.simulations.items = function() {
   return simulations.find();
 }
 
+Template.simulations.nameOf = getNameOfPlayer;
+
 Template.simulations.stats = function() {
-  var count = simulations.find().count(),
-    win0 = simulations.find({
-      winnerIndex: 0
-    }).count(),
-    win1 = simulations.find({
-      winnerIndex: 1
-    }).count(),
-    percent0 = Math.round((win0 / count) * 100);
+  var win0 = 0,
+    win1 = 0,
+    avg0 = 0,
+    avg1 = 0,
+    count = 0,
+    draws = 0;
+  simulations.find().forEach(function(s) {
+    if (!s.draw) {
+      if (s.winnerIndex) {
+        win1++;
+      } else {
+        win0++;
+      }
+
+    } else {
+      draws++
+    }
+    avg0 += s.timeRound0;
+    avg1 += s.timeRound1;
+    count++;
+  });
+
   return [{
     name: getNameOfPlayer(0),
     wins: win0,
     loss: win1,
-    draw: count - win1 - win0,
-    percent: percent0
+    draw: draws,
+    timeRound: Math.round(avg0 / (count)),
+    percent: Math.round((win0 / count) * 100)
   }, {
     name: getNameOfPlayer(1),
     wins: win1,
     loss: win0,
-    draw: count - win1 - win0,
-    percent: 100 - percent0
+    draw: draws,
+    timeRound: Math.round(avg1 / (count)),
+    percent: Math.round((win1 / count) * 100)
   }];
 }
 
@@ -666,15 +715,17 @@ Meteor.startup(function() {
 
         //Swapper indexer for type 
         //hvis man ser at man har fått motsatt player index online
-        if (g.index == 0 && game.type0 == 5) {
-          game.type0 = game.type1;
-          game.type1 = 5;
-          game.minmax0 = game.minmax1;
-        } else if (g.index == 1 && game.type1 == 5) {
-          game.type1 = game.type0;
-          game.type0 = 5;
-          game.minmax1 = game.minmax0;
+        if (!Session.get("monitorGame")) {
+          if (g.index == 0 && game.type0 == 5) {
+            game.type0 = game.type1;
+            game.type1 = 5;
+            game.minmax0 = game.minmax1;
+          } else if (g.index == 1 && game.type1 == 5) {
+            game.type1 = game.type0;
+            game.type0 = 5;
+            game.minmax1 = game.minmax0;
 
+          }
         }
         Session.set("g", game);
 

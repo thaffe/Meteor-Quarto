@@ -29,6 +29,10 @@
 	<div class="jumbotron">	
 		<center class="container gameselect">
 			<h1>Quarto</h1>
+			<center>
+				<input style="width:250px" type="text" class="form-control" id="playerName" value="{{playername}}">
+				<button id="changeNameBtn" class="btn btn-primary">Change playername</button>
+			</center>
 			{{#each players}}
 				<div id="player{{id}}">
 					<h3 class="text-muted">Player {{this.name}} type</h3>

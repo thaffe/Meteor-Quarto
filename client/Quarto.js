@@ -1,12 +1,10 @@
 Meteor.startup(function() {
   if (!document.cookie || document.cookie.length < 3) {
-    document.cookie = Meteor.uuid();
+    document.cookie = "Awesome-"+(Math.round(new Date().getTime()/1000));
   }
   if (!Session.get("userId")) {
     Session.set("userId", document.cookie);
   }
-
-  Meteor.subscribe("player", Session.get("userId"));
   if (Session.get("g")) {
     game = Session.get("g");
   }
@@ -22,7 +20,7 @@ function startGame() {
     runSimulations: Session.get("runSimulations") ? parseInt($("#simulationsCount").val()) : false,
     gameId: $("#gameId").val()
   };
-
+  game.gameId = game.gameId && game.gameId.length >= 3 ? game.gameId : 0;
   if (!game.type0 || !game.type1) {
     alert("Both player 1 and 2 level is required");
   }
@@ -30,7 +28,7 @@ function startGame() {
   Session.set("gameId", game.gameId);
   Session.set("newGame", true);
   if (isMonitor()) {
-    if (game.gameId.length < 3) {
+    if (!game.gameId) {
       alert("Game id is required to monitor game");
       return;
     }
@@ -40,7 +38,7 @@ function startGame() {
   } else {
     Session.set("monitorGame", false);
     if (isOnlineGame()) {
-      Meteor.call("startGame", Session.get("userId"));
+      Meteor.call("startGame", Session.get("userId"), game.gameId);
     }
   }
 
@@ -57,7 +55,6 @@ window.restartGame = function() {
 }
 
 function endGame() {
-  console.log("HELOOOOOOO")
   Session.set("gameStarted", false);
   Session.set("selected", null);
   Session.set("runSimulations", false);
@@ -97,8 +94,23 @@ Template.gameSelect.events({
   },
   'click #noBtn': function() {
     Session.set("runSimulations", false);
+  },
+
+  'click #changeNameBtn' : function(e,r){
+    var val = r.find("#playerName").value;
+    if(val && val.length > 4){
+      document.cookie = val;
+      Session.set("userId",val);
+      console.log("name updated");
+    }else{
+      alert("player name must be at least 5 characters");
+    }
   }
 });
+
+Template.gameSelect.playername = function(){
+  return Session.get("userId");
+}
 
 Template.gameSelect.playerTypes = function() {
   return playerTypes;

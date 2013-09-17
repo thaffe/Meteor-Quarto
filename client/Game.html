@@ -43,6 +43,7 @@
 					<th>Loss</th>
 					<th>Draw</th>
 					<th>Percentage</th>
+					<th>Avg move in ms</th>
 				</tr>
 				{{#each stats}}
 					<tr>
@@ -51,6 +52,7 @@
 						<td>{{loss}}</td>
 						<td>{{draw}}</td>
 						<td>{{percent}}%</td>
+						<td>{{timeRound}}</td>
 					</tr>
 				{{/each}}
 			</table>
@@ -65,6 +67,8 @@
 				<th style="width:120px">Winner index</th>
 				<th>Winner name</th>
 				<th>Reason</th>
+				<th>Avg move in ms <br />{{nameOf 0}}</th>
+				<th>Avg move in ms<br />{{nameOf 1}}</th>
 				<th></th>
 			</tr>
 		</thead>
@@ -74,6 +78,8 @@
 				<td>{{winnerIndex}}</td>
 				<td>{{winner}}</td>
 				<td>{{reason}}</td>
+				<td>{{timeRound0}}</td>
+				<td>{{timeRound1}}</td>
 			</tr>
 		{{/each}}
 	</table>

@@ -1,14 +1,18 @@
-Meteor.startup(function () {
-	Players.remove({last:{$lt:(new Date().getTime() - 180000)}})
+Meteor.startup(function() {
+	Players.remove({
+		last: {
+			$lt: (new Date().getTime() - 180000)
+		}
+	})
 });
 
-Meteor.publish('player', function(id,resetPlayer) {
+Meteor.publish('player', function(id, resetPlayer) {
 	if (!Players.findOne(id)) {
 		Players.insert({
 			_id: id
 		});
-	}else if(resetPlayer){
-		Players.update(id,{})
+	} else if (resetPlayer) {
+		Players.update(id, {})
 	}
 	return Players.find({
 		_id: id
@@ -16,6 +20,7 @@ Meteor.publish('player', function(id,resetPlayer) {
 });
 
 Meteor.publish('monitor', function(gameId) {
+	console.log("monitor");
 	return Players.find({
 		gameId: gameId
 	});
@@ -27,23 +32,23 @@ Meteor.methods({
 		var player = Players.findOne(userId);
 		if (!player) return;
 		var oponent, updateAttrs = {
-			selectedPos: -1,
-			selectedPiece: -1,
-			last:new Date().getTime()
-		};
+				gameId: gameId || 0,
+				selectedPos: -1,
+				selectedPiece: -1,
+				last: new Date().getTime()
+			};
 
 		if (gameId) {
-			updateAttrs.gameId = gameId;
 			oponent = Players.findOne({
 				gameId: gameId
 			});
 		} else {
 			oponent = Players.findOne({
-				_id:{$ne:userId},
+				_id: {
+					$ne: userId
+				},
 				searching: 1,
-				gameId: {
-					$exists: false
-				}
+				gameId: 0
 			});
 		}
 
@@ -54,8 +59,9 @@ Meteor.methods({
 
 			var playerTurn = Math.round(Math.random());
 			updateAttrs.turn = playerTurn;
-			
+
 			Players.update(oponent._id, {
+				gameId:updateAttrs.gameId,
 				searching: 0,
 				oponent: player._id,
 				index: 0,
@@ -70,43 +76,53 @@ Meteor.methods({
 
 	},
 
-	restart : function(userId){
+	restart: function(userId) {
 		var player = Players.findOne(userId);
-		if(!player || !player.oponent)return;
+		if (!player || !player.oponent) return;
 
-		if(player.doRestart){
+		if (player.doRestart) {
 			var playerTurn = Math.round(Math.random()),
-			update = {
-				doRestart : 0,
-				turn:playerTurn,
-				selectedPiece:-1,
-				selectedPos:-1
-			};
+				update = {
+					doRestart: 0,
+					turn: playerTurn,
+					selectedPiece: -1,
+					selectedPos: -1
+				};
 			playerUpdate(userId, update);
 			playerUpdate(player.oponent, update);
-		}else{
-			Players.update(userId,{oponent:player.oponent,index:player.index});
-			playerUpdate(player.oponent,{doRestart:1});
+		} else {
+			Players.update(userId, {
+				oponent: player.oponent,
+				index: player.index,
+				gameId: player.gameId
+			});
+			playerUpdate(player.oponent, {
+				doRestart: 1
+			});
 		}
 	},
 
-	doMove : function(userId, placePos, selectedPiece){
+	doMove: function(userId, placePos, selectedPiece) {
 		var player = Players.findOne(userId);
-		if(!player || !player.oponent) return;
-		if(player.turn != player.index){
+		if (!player || !player.oponent) return;
+		if (player.turn != player.index) {
 			Meteor.Error(500, 'Its not your turn');
 			return;
 		}
 
 		playerUpdate(player.oponent, {
-			turn:bitShift(player.turn),
+			turn: bitShift(player.turn),
 			selectedPos: placePos,
 			selectedPiece: selectedPiece
 		});
 	},
 
-	exit : function(userId){
-		playerUpdate({oponent:userId},{oponent:0});
+	exit: function(userId) {
+		playerUpdate({
+			oponent: userId
+		}, {
+			oponent: 0
+		});
 		Players.remove(userId);
 	},
 

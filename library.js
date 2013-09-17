@@ -41,18 +41,18 @@
 		return s;
 	}
 
-	this.isOnlineGame = function() {
-		return (game.type0 == 5 || game.type1 == 5) && game.type1 != game.type0;
-	}
-
-	this.isMonitor = function() {
-		return game.type0 == 5 && game.type1 == 5
-	}
-
 	this.Players = new Meteor.Collection("players");
 	this.game = {};
 
 	if (Meteor.isClient) {
+		this.isOnlineGame = function() {
+			return (game.type0 == 5 || game.type1 == 5) && game.type1 != game.type0;
+		}
+
+		this.isMonitor = function() {
+			return game.type0 == 5 && game.type1 == 5
+		}
+
 		this.playerTypes = [{
 			id: 1,
 			name: "Human"
@@ -69,6 +69,36 @@
 			id: 5,
 			name: "Online Computer"
 		}];
+
+		this.getTypeName = function(typeIndex) {
+			switch (typeIndex) {
+				case 0:
+					return "red pieces";
+				case 1:
+					return "circle pieces";
+				case 2:
+					return "small pieces";
+				case 3:
+					return "pieces without hole";
+				case 4:
+					return "blue pieces";
+				case 5:
+					return "square pieces";
+				case 6:
+					return "big pieces";
+				case 7:
+					return "pieces with hole";
+			}
+		}
+
+		this.getAvg = function(times) {
+			var avg = 0;
+			for (var i = 0; i < times.length; i++) {
+				avg += times[i];
+			}
+
+			return Math.round(avg / times.length);
+		}
 	}
 
 }).call(this);
