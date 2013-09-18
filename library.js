@@ -45,6 +45,7 @@
 	this.game = {};
 
 	if (Meteor.isClient) {
+		this.simulations = new Meteor.Collection.ObjectID(null);
 		this.isOnlineGame = function() {
 			return (game.type0 == 5 || game.type1 == 5) && game.type1 != game.type0;
 		}

@@ -12,6 +12,7 @@ Meteor.startup(function() {
 
 
 function startGame() {
+  simulations = new Meteor.Collection(null);
   game = {
     type0: Session.get("type0"),
     type1: Session.get("type1"),
@@ -34,6 +35,7 @@ function startGame() {
     }
     console.log("MONITOR GAME");
     Session.set("monitorGame", game.gameId);
+    return;
 
   } else {
     Session.set("monitorGame", false);
@@ -51,10 +53,15 @@ window.restartGame = function() {
 
   if (isOnlineGame(Session.get("g"))) {
     Meteor.call("restart", Session.get("userId"));
+  }else if(isMonitor()){
+    Meteor.call("restartBoth",game.gameId);
   }
 }
 
 function endGame() {
+  if(isOnlineGame()){
+    Meteor.call("resetPlayer",Session.get("userId"));
+  }
   Session.set("gameStarted", false);
   Session.set("selected", null);
   Session.set("runSimulations", false);
@@ -75,7 +82,7 @@ Template.body.events({
 });
 
 Template.body.showGame = function() {
-  return Session.get("gameStarted");
+  return Session.get("gameStarted") || Session.get("monitorGame");
 }
 
 Template.gameSelect.events({

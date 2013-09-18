@@ -1,37 +1,42 @@
 /*****
 GAME PLAY
+  global var game: inited in Quarto.js startGame() contins info about game
+    type0: type of player 1, 1=human, 2=random, 3=novice, 4=minmax 5=online player
+    type1: same as over just for player 2
+    minmax0: int minmax level of player 1
+    minmax1: int minmax level of player 2
+    runSimulations = int how many simuylations to run, 0 for regular game
+    gameId: string if online game, to find a specific game with this id
+
+  typeCount = array[10] keeping count of number of attributes on a row, col and diagonals
+    each row = array[8] ints one for each attribute in this order (red,circle,smal,notHole,blue,square,big,hasHole)
+  currentPlayer = the current player to place and select piece,
+  board = array[16] is empty when game is started
+  pieces = array[16] is filled with all the combinations of pieces when started (all combinations of 4bits).
+    piece is represented by 4 bits, 
+      1 bit 1 if blue else red
+      2 bit 1 if square else circle
+      3 bit 1 if big else smal
+      4 bit 1 if hasHole else not hole
+  timePlace,timePick is performance statistics
+  winInfo is for printing winner information, and storing when multiple simulation
 ******/
-
-// window.test = function() {
-//   for (var i = 0; i < 3; i++) {
-//     setSelected(i);
-//     placePiece(i);
-//   }
-
-//   for (var i = 9; i < 11; i++) {
-//     setSelected(i);
-//     placePiece(i);
-//   }
-// };
-
-Deps.autorun(function() {
-  var monitor = Session.get("monitorGame");
-  console.log("monitorGame")
-  if (monitor) {
-    Meteor.subscribe('monitor', Session.get("monitorGame"));
-  } else {
-    Meteor.subscribe("player", Session.get("userId"));
-  }
-});
+window.typeCount = [];
 
 var currentPlayer, selectedPiece, currentRound, lastBoardPos = -1;
 var board = [],
   pieces = [],
-  typeCount = {}, timePlace, timePick,
-  type, simulations, simCount = 0,
+  timePlace, timePick,
+  type, simCount = 0,
   onlineStarted = false;
 var winInfo = {}, hasWon = false;
 
+/**
+ * This methods starts the game by init
+ * the board and pieces list, and the type count
+ * when done init
+ * it runs selectPiece to request the player to select piece
+ */
 function startGame() {
   currentPlayer = 0;
   currentRound = 0;
@@ -59,27 +64,44 @@ function startGame() {
   winInfo = {};
 
   hasWon = false;
-
+  //if online game the game is started by the server monitor at the bottom of this file
   if (isOnlineGame(game)) {
     onlineStarted = false;
   } else {
-    selectPiece();
+
+    !isMonitor() && selectPiece();
   }
 }
 
+/**
+ * Bit shifst the current player
+ * @return {[int]} [next player]
+ */
 function getNextPlayer() {
   //Bit shifts the player so it toggles between 0 and 1;
   return bitShift(currentPlayer);
 }
 
+/**
+ * Sets the next player
+ */
 function setNextPlayer() {
   currentPlayer = getNextPlayer();
 }
 
+/**
+ * Gets the player type of current player from the global game (see top for details)
+ * @return {[type]} [description]
+ */
 function getPlayerType() {
   return game["type" + currentPlayer];
 }
 
+/**
+ * Gets a printable name for the player with the given index
+ * @param  {[type]} index [description]
+ * @return {[type]}       [description]
+ */
 function getNameOfPlayer(index) {
   var type = game["type" + index];
   if (!type) return;
@@ -91,18 +113,25 @@ function getNameOfPlayer(index) {
         return Players.find().count() < 2 ? "Unknown" : Players.findOne({
           index: index
         })._id;
-      }else{
-        var n = Players.findOne().oponent;
-        if(n) return n;
+      } else {
+        var n = Players.findOne();
+        if (n) return n.oponent;
       }
     default:
       return playerTypes[type - 1].name;
   }
 }
 
+/**
+ * select piece for game
+ * @return {[type]} [description]
+ */
 function selectPiece() {
+  //Sets current selected to null
   Session.set("selected", null);
   var type = getPlayerType();
+  //Looks over types to pick right action for player
+  //default is if the comnputer shold pick piece
   switch (type) {
     case 1:
       setInfo(getNameOfPlayer(currentPlayer) + " turn! Select piece for " + getNameOfPlayer(getNextPlayer()));
@@ -113,15 +142,16 @@ function selectPiece() {
       setHoverable(false, false);
       break;
     default:
-
+      //Register time start
       var time = new Date().getTime();
       setSelected(getPiece[type]());
+      //Save time used to select piece
       timePick[currentPlayer].push(new Date().getTime() - time);
-
+      //If against human, print info on screen
       if (game.type1 == 1 || game.type2 == 1) {
         setInfo("Computer selected this piece for you to place");
       }
-
+      //run select board place 
       selectBoardPlace();
   }
 }
@@ -148,7 +178,7 @@ function selectBoardPlace() {
 
   }
 }
-
+//javascript hack for easy select of right type of player bot when selecting piece and board place
 var getPiece = [0, 0, getRandomPiece, getNovicePiece, getMinMaxPiece];
 var getBoard = [0, 0, getRandomBoard, getNoviceBoard, getMinMaxBoard];
 
@@ -170,55 +200,76 @@ function getRandom(list, isEmpty) {
   }
 }
 
+/**
+ * get pice for novice player
+ * @return {[type]} [description]
+ */
 function getNovicePiece() {
+  //Returns random before round 3
   if (currentRound <= 3) return getRandomPiece();
 
   var i = 16;
+  //Loops over pieces and check for first piece that does not give winning board
+  //Else return random piece
   while (i--) {
-    if (pieces[i] && firstWinBoardPos(pieces[i]) !== null) {
-      return i;
-    }
+    if (pieces[i] && firstWinBoardPos(i) === null) return i;
   }
   return getRandomPiece();
 }
 
+/**
+ * Gets noveice board
+ * @return {[type]} [description]
+ */
 function getNoviceBoard() {
   if (currentRound <= 3) return getRandomBoard();
-  return firstWinBoardPos(pieces[selectedPiece]) || getRandomBoard();
+  return firstWinBoardPos(selectedPiece) || getRandomBoard();
 }
 
+/**
+ * Checks the board for a winning state given the piece parameter
+ * @param  {[type]} piece indexOf piiece
+ * @return {[type]} board index if found nul else
+ */
 function firstWinBoardPos(piece) {
   var i = 16;
   while (i--) {
-    if (!board[i]) {
-      board[i] = piece;
-      updateTypeCount(i);
-
-      if (checkBoardPiecesWin()) {
-        updateTypeCount(i, true);
-        board[i] = 0;
-        return i;
-      }
+    if (board[i]) continue;
+    //Places piece temp
+    //Check for win
+    //reset temp
+    board[i] = pieces[piece];
+    updateTypeCount(i);
+    if (checkBoardPiecesWin()) {
       updateTypeCount(i, true);
-
       board[i] = 0;
-
+      return i;
     }
+    updateTypeCount(i, true);
+
+    board[i] = 0;
   }
 
   return null;
 }
 
+/**
+ * Retrives the minmax piece
+ * @return {[int]} [index of best piece selected by minmax]
+ */
 function getMinMaxPiece() {
   if (currentRound <= 3) return getRandomPiece();
 
+  //gets minmax level from global game (see top for details)
   var depth = game["minmax" + currentPlayer],
+  //Sets alpha level that will be improved
     alpha = -10000,
     beta = 100000,
     bestPiece = -1;
-
+  //If depth greater than 4 and not round 6 reached set depht to 4 to not crash computer
   if (depth > 4 && currentRound < 6) depth = 4;
 
+  //Loops over alle the pieces and runs min max on board with this piece as selected
   for (var i = 0; i < 16; i++) {
     if (!pieces[i]) continue;
     var newVal = doMinmaxBoard(depth, 0, alpha, beta, i);
@@ -231,6 +282,10 @@ function getMinMaxPiece() {
   return bestPiece;
 }
 
+/**
+ * Gets minmax for board
+ * @return {[int]} [boardIndex]
+ */
 function getMinMaxBoard() {
   //Returns a pice inside the center of the board if round less than 3
   if (currentRound <= 3) {
@@ -241,7 +296,7 @@ function getMinMaxBoard() {
     }
   }
 
-
+  //See getMinmaxPieces() for details
   var depth = game["minmax" + currentPlayer],
     alpha = -100000,
     beta = 100000,
@@ -249,6 +304,8 @@ function getMinMaxBoard() {
 
   if (depth > 4 && currentRound < 6) depth = 4;
 
+  //Loops over boardplaces and places the selected piece in it
+  //Check for win, if not immediate win run minmax on pieces with htis board
   for (var i = 0; i < 16; i++) {
     if (board[i]) continue;
     if (tempSel(i, selectedPiece)) return i;
@@ -264,10 +321,17 @@ function getMinMaxBoard() {
 
   return bestPos;
 }
-
+/**
+ * Temporary select a piece in a given board index
+ * Also checkse for win, if win backwrite the temp select and return true
+ * @param  {[type]} boardI [board index]
+ * @param  {[type]} selI   [piece index]
+ * @return {[type]}        [description]
+ */
 function tempSel(boardI, selI) {
   board[boardI] = pieces[selI];
   pieces[selI] = 0;
+  //Update type count to keep this up to date
   updateTypeCount(boardI);
 
   if (checkBoardPiecesWin()) {
@@ -277,15 +341,33 @@ function tempSel(boardI, selI) {
   return 0;
 }
 
+/**
+ * Write back the previous selected piece on the give board index
+ * @param  {[type]} boardI [description]
+ * @param  {[type]} selI   [description]
+ * @return {[type]}        [description]
+ */
 function tempUnSel(boardI, selI) {
+  //Revert type count
   updateTypeCount(boardI, true);
   pieces[selI] = board[boardI];
   board[boardI] = 0;
 }
 
+/**
+ * Does minmax on the board
+ * @param  {[type]}  depth    [depth left]
+ * @param  {Boolean} isMax    [true if is max player]
+ * @param  {[type]}  alpha    [curren alpha value]
+ * @param  {[type]}  beta     [current beta value]
+ * @param  {[type]}  selIndex [piece index]
+ * @return {[type]}  alpha if ismax else beta
+ */
 function doMinmaxBoard(depth, isMax, alpha, beta, selIndex) {
   if (depth == 0) return getHeuristicValue(isMax);
 
+  //Loops over board places and temporary select select pieces in board place
+  //And does recursive call to doMinmaxPiece
   if (isMax) {
     for (var i = 0; i < 16; i++) {
       if (board[i]) continue;
@@ -339,12 +421,19 @@ function doMinmaxPiece(depth, isMax, alpha, beta) {
   }
 }
 
+//An array to check for sure wins on board with 3 pices in row of oposite types
 var type3test = new Array(8);
-
+/**
+ * Retrives the heuristic value for the board
+ * @param  {Boolean} isMax [description]
+ * @return {[type]}        [description]
+ */
 function getHeuristicValue(isMax) {
-
+  //Inits score at 0
   var res = 0;
-  //types3 = new Array(8);
+  //Loops over alle the attribute counte
+  //If count is 3 then 10 points, also check true ine the type3test to check for oposite types
+  //if count is 2 then 1 point
   for (var i = 0; i < 10; i++) {
     for (var j = 0; j < 8; j++) {
       switch (typeCount[i][j]) {
@@ -358,9 +447,11 @@ function getHeuristicValue(isMax) {
       }
     }
   }
-
+  //Loops over half of teh oposite type chekc to check if ther is an oposite type that alsoe is true
+  //That means if index i and i*2 is true then two of oposite type exists on board
+  //example:if i = 0 then i+4 = 4, then red and blue attributes exists 3 of in a row on board which gice a garanted win
   for (var i = 0; i < 4; i++) {
-    if (type3test[i] == 1 && type3test[i * 2] == 1) {
+    if (type3test[i] == 1 && type3test[i + 4] == 1) {
       res += 100;
       break;
     }
@@ -418,26 +509,43 @@ function placePiece(b, notOnline) {
     selectPiece();
   }
 }
-
+/**
+ * When pieces is placed on board this function is run to update the type count for each row,column and diagonals
+ * @param  {[int]} boardIndex [Selected board index]
+ * @param  {[type]} doReverse  if true the typeCount is decreased by one isted of increased by one
+ * @return {[type]}            [description]
+ */
 function updateTypeCount(boardIndex, doReverse) {
   var row = Math.floor(boardIndex / 4),
-    col = boardIndex - row * 4,
+    col = boardIndex % 4,
     diag1 = boardIndex % 5 == 0,
     diag2 = boardIndex && boardIndex % 3 == 0 && boardIndex <= 12,
     pieceVal = board[boardIndex];
 
   for (var i = 0; i < 4; i++) {
-    var type = i + 4 * parseInt(pieceVal[i]),
-      val = doReverse ? -1 : 1;
-    typeCount[row][type] += val;
-    typeCount[col + 4][type] += val;
-    if (diag1) typeCount[8][type] += val;
-    if (diag2) typeCount[9][type] += val;
+    try {
+      var type = i + 4 * parseInt(pieceVal[i]),
+        val = doReverse ? -1 : 1;
+      //if(typeCount[row][type]) debugger;
 
-    typeCount[10][type] += val;
+      typeCount[row][type] += val;
+      typeCount[col + 4][type] += val;
+      if (diag1) typeCount[8][type] += val;
+      if (diag2) typeCount[9][type] += val;
+
+      typeCount[10][type] += val;
+    } catch (e) {
+      console.log(pieceVal);
+      //debugger;
+    }
   }
 }
 
+/**
+ * Checks the typeCoutn for a winning attribute (value >= 4)
+ * @param  {[type]} array [description]
+ * @return {[type]}       [description]
+ */
 function existsWinType(array) {
   var i = 8;
   while (i--)
@@ -445,55 +553,32 @@ function existsWinType(array) {
   return -1;
 }
 
+/**
+ * When game is run this function is run to check if more simulations is necessary
+ * @return {[type]} [description]
+ */
 function updateSimulation() {
   simCount++;
   if (simCount < game.runSimulations) {
 
     if (isOnlineGame()) {
-      Meteor.call("restart", isMonitor() ? Players.findOne()._id : Session.get("userId"));
+      Meteor.call("restart", Session.get("userId"));
     }
+
     setTimeout(startGame);
   } else {
     Session.set("simulationDone", true);
   }
 }
 
+/**
+ * Makes the board or pieces hoverable in the gui
+ * @param {[type]} board  [description]
+ * @param {[type]} pieces [description]
+ */
 function setHoverable(board, pieces) {
   Session.set("hoverableBoard", board);
   Session.set("hoverablePieces", pieces);
-}
-
-function setInfo(text) {
-  Session.set("infoText", text);
-}
-
-function setWinInfo(indexes, typeIndex) {
-  var avgSel = [getAvg(timePick[0]), getAvg(timePick[1])],
-    avgPlace = [getAvg(timePlace[0]), getAvg(timePlace[1])];
-
-  winInfo = {
-    timeRound0: avgSel[0] + avgPlace[0],
-    timeRound1: avgSel[1] + avgPlace[1],
-    round: simCount + 1
-  };
-
-  if (currentRound == 16) {
-    winInfo.draw = 1;
-    winInfo.winner = "Draw";
-    winInfo.winInfo = "NaN";
-    winInfo.reason = "Game ended in a draw";
-    setInf(winInfo.reason);
-  } else {
-    winInfo.winner = getNameOfPlayer(currentPlayer);
-    winInfo.winnerIndex = currentPlayer;
-    winInfo.indexes = indexes;
-    winInfo.reason = "4 " + getTypeName(typeIndex) + " in a row";
-    setInfo(winInfo.winner + " wins! Has " + winInfo.reason);
-  }
-
-  if (simulations) {
-    simulations.insert(winInfo);
-  }
 }
 
 /**
@@ -502,7 +587,6 @@ function setWinInfo(indexes, typeIndex) {
  * and looping over theese checing the piece attributes
  * @return {int} 1 if win else 0
  */
-
 function checkForWin() {
   //If theres is no pieces left (all the pieces is set to null), then tell the player the game ended in a draw
   if (currentRound == 16) {
@@ -536,6 +620,11 @@ function checkForWin() {
   return 0;
 }
 
+/**
+ * Checks the board for a winning combination by looping over the typeCount array 
+ * looking for for value of 4 of an attribute
+ * @return {[type]} [description]
+ */
 function checkBoardPiecesWin() {
   if (currentRound < 4) return 0;
   var i = 4;
@@ -546,6 +635,53 @@ function checkBoardPiecesWin() {
 
   return 0
 }
+
+/**
+ * Updates the info printed in the GUI
+ * @param {[type]} text [description]
+ */
+function setInfo(text) {
+  Session.set("infoText", text);
+}
+
+/**
+ * Sets the winning info and saves if simulation is running
+ * @param {[type]} indexes   [description]
+ * @param {[type]} typeIndex [description]
+ */
+function setWinInfo(indexes, typeIndex) {
+  var avgSel = [getAvg(timePick[0]), getAvg(timePick[1])],
+    avgPlace = [getAvg(timePlace[0]), getAvg(timePlace[1])];
+
+  winInfo = {
+    timeRound0: avgSel[0] + avgPlace[0],
+    timeRound1: avgSel[1] + avgPlace[1],
+    round: simCount + 1
+  };
+
+  if (currentRound == 16) {
+    winInfo.draw = 1;
+    winInfo.winner = "Draw";
+    winInfo.winInfo = "NaN";
+    winInfo.reason = "Game ended in a draw";
+    setInfo(winInfo.reason);
+  } else {
+    winInfo.winner = getNameOfPlayer(currentPlayer);
+    winInfo.winnerIndex = currentPlayer;
+    winInfo.indexes = indexes;
+    winInfo.reason = "4 " + getTypeName(typeIndex) + " in a row";
+    setInfo(winInfo.winner + " wins! Has " + winInfo.reason);
+  }
+
+  if (game.runSimulations) {
+    simulations.insert(winInfo);
+  }
+}
+
+
+/*****************************
+ * GUI UPDATING STUFF
+ ***************************/
 
 Template.game.events({
   'click #board.hoverable td': function() {
@@ -563,7 +699,6 @@ Template.game.events({
 
 Template.game.gameType = function() {
   if (Session.get("newGame")) {
-    simulations = new Meteor.Collection(null);
     simCount = 0;
     Session.set("newGame", false);
     startGame();
@@ -638,6 +773,9 @@ Template.game.info = function() {
   return Session.get("infoText");
 }
 
+/******
+SIMULATION STUFF
+******/
 Template.game.runSimulations = function() {
   return game.runSimulations || isMonitor();
 }
@@ -694,12 +832,37 @@ Template.simulations.stats = function() {
 Meteor.startup(function() {
   Players.find().observe({
     changed: function(g, oldG) {
-      console.log("Playerupdate", g);
+
+      if (isMonitor()) {
+        currentPlayer = g.turn;
+        if (g.doRestart) {
+          startGame();
+        }
+
+        if (g.selectPiece > -1) {
+          selectedPiece = g.selectedPiece;
+        }
+
+        if (g.selectedPos > -1) {
+          placePiece(g.selectedPos);
+          if (checkBoardPiecesWin()) {
+            simulations.insert({
+              round: simulations.find().count() + 1,
+              winner: getNameOfPlayer(g.turn),
+              winnerIndex: g.turn,
+              reason: "something cool"
+            });
+          }
+        }
+
+        return;
+      }
+      //console.log("Playerupdate", g);
       if (g.searching) {
         setInfo("Searching for other players");
         return;
       }
-      if (g.doRestart) {
+      if (g.doRestart || g.superRestart) {
         Session.set("newGame", true);
         Meteor.call("restart", Session.get("userId"));
         return;
@@ -715,23 +878,22 @@ Meteor.startup(function() {
 
         //Swapper indexer for type 
         //hvis man ser at man har fått motsatt player index online
-        if (!Session.get("monitorGame")) {
-          if (g.index == 0 && game.type0 == 5) {
-            game.type0 = game.type1;
-            game.type1 = 5;
-            game.minmax0 = game.minmax1;
-          } else if (g.index == 1 && game.type1 == 5) {
-            game.type1 = game.type0;
-            game.type0 = 5;
-            game.minmax1 = game.minmax0;
+        if (g.index == 0 && game.type0 == 5) {
+          game.type0 = game.type1;
+          game.type1 = 5;
+          game.minmax0 = game.minmax1;
+        } else if (g.index == 1 && game.type1 == 5) {
+          game.type1 = game.type0;
+          game.type0 = 5;
+          game.minmax1 = game.minmax0;
 
-          }
         }
         Session.set("g", game);
 
         currentPlayer = g.turn;
         onlineStarted = true;
-        selectPiece();
+        if (g.turn == g.index)
+          selectPiece();
         return;
       }
 
@@ -747,4 +909,18 @@ Meteor.startup(function() {
 
     }
   });
+});
+/**
+ * Used for playing with other games through the server
+ * Monitor is to wach other games beeing played
+ * @return {[type]} [description]
+ */
+Deps.autorun(function() {
+  var monitor = Session.get("monitorGame");
+  if (monitor) {
+    console.log("monitorGame")
+    Meteor.subscribe('monitor', Session.get("monitorGame"));
+  } else {
+    Meteor.subscribe("player", Session.get("userId"));
+  }
 });
